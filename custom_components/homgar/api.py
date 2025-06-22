@@ -2,12 +2,20 @@
 from __future__ import annotations
 
 import logging
+import random
 import time
 from typing import Any
 
 from homgarapi import HomgarApi, HomgarApiException
 
 _LOGGER = logging.getLogger(__name__)
+
+# Constants
+LOGIN_RETRY_TIMEOUT = 300  # 5 minutes
+MAX_LOGIN_RETRIES = 3
+MIN_BACKOFF_DELAY = 1
+MAX_BACKOFF_DELAY = 60
+REQUEST_TIMEOUT = 30
 
 
 class HomgarApiClient:
@@ -21,7 +29,23 @@ class HomgarApiClient:
         self._api = HomgarApi()
         self._last_login_time = 0
         self._login_retry_count = 0
-        self._max_retries = 3
+        self._max_retries = MAX_LOGIN_RETRIES
+
+    def _calculate_backoff_delay(self, attempt: int) -> float:
+        """Calculate exponential backoff with jitter."""
+        base_delay = min(MAX_BACKOFF_DELAY, (2 ** attempt))
+        jitter = random.uniform(0.1, 0.5)
+        return max(MIN_BACKOFF_DELAY, base_delay * jitter)
+
+    def _is_authentication_error(self, error_str: str) -> bool:
+        """Check if error indicates authentication failure."""
+        auth_indicators = ['401', '403', 'unauthorized', 'forbidden', 'invalid credentials']
+        return any(indicator in error_str for indicator in auth_indicators)
+
+    def _is_connection_error(self, error_str: str) -> bool:
+        """Check if error indicates connection issues."""
+        connection_indicators = ['timeout', 'connection', 'network', 'unreachable']
+        return any(indicator in error_str for indicator in connection_indicators)
 
     def ensure_logged_in(self) -> None:
         """Ensure we're logged in to the API with retry logic."""
@@ -29,8 +53,11 @@ class HomgarApiClient:
         
         # If we've failed too many times recently, wait before retrying
         if self._login_retry_count >= self._max_retries:
-            if current_time - self._last_login_time < 300:  # 5 minutes
-                raise HomgarApiException("Too many login failures, please wait before retrying")
+            if current_time - self._last_login_time < LOGIN_RETRY_TIMEOUT:
+                backoff_delay = self._calculate_backoff_delay(self._login_retry_count)
+                raise HomgarApiException(
+                    f"Too many login failures, please wait {backoff_delay:.1f} seconds before retrying"
+                )
             else:
                 # Reset retry count after waiting period
                 self._login_retry_count = 0
@@ -45,16 +72,16 @@ class HomgarApiClient:
             self._login_retry_count += 1
             self._last_login_time = current_time
             
-            # Check for specific error types
             error_str = str(err).lower()
-            if any(code in error_str for code in ['401', '403', 'unauthorized', 'forbidden']):
+            if self._is_authentication_error(error_str):
                 _LOGGER.error("Authentication failed for HomGar API - check credentials: %s", err)
                 raise HomgarApiException("Invalid credentials") from err
-            elif 'timeout' in error_str or 'connection' in error_str:
+            elif self._is_connection_error(error_str):
                 _LOGGER.error("Connection timeout to HomGar API: %s", err)
                 raise HomgarApiException("Connection timeout") from err
             else:
-                _LOGGER.error("Failed to login to HomGar API: %s", err)
+                _LOGGER.error("Failed to login to HomGar API (attempt %d/%d): %s", 
+                             self._login_retry_count, self._max_retries, err)
                 raise
                 
         except Exception as err:
@@ -63,7 +90,7 @@ class HomgarApiClient:
             _LOGGER.error("Unexpected error during HomGar API login: %s", err)
             raise HomgarApiException(f"Login failed: {err}") from err
 
-    def get_homes(self):
+    def get_homes(self) -> list[Any]:
         """Get all homes with error handling."""
         try:
             homes = self._api.get_homes()
@@ -85,10 +112,10 @@ class HomgarApiClient:
             _LOGGER.error("Failed to get homes from HomGar API: %s", err)
             raise HomgarApiException(f"Failed to retrieve homes: {err}") from err
 
-    def get_devices_for_hid(self, hid: str):
+    def get_devices_for_hid(self, hid: str) -> list[Any]:
         """Get devices for a home ID with error handling."""
-        if not hid:
-            _LOGGER.warning("Empty HID provided to get_devices_for_hid")
+        if not hid or not isinstance(hid, str):
+            _LOGGER.warning("Invalid HID provided to get_devices_for_hid: %s", hid)
             return []
             
         try:
@@ -113,7 +140,7 @@ class HomgarApiClient:
             _LOGGER.error("Failed to get devices for home %s from HomGar API: %s", hid, err)
             raise HomgarApiException(f"Failed to retrieve devices for home {hid}: {err}") from err
 
-    def get_device_status(self, hub):
+    def get_device_status(self, hub: Any) -> Any:
         """Get device status with error handling."""
         if not hub:
             _LOGGER.warning("No hub provided to get_device_status")
@@ -155,6 +182,17 @@ class HomgarApiClient:
         try:
             self._api = HomgarApi()
             self._login_retry_count = 0
+            self._last_login_time = 0
             _LOGGER.info("Reset HomGar API connection")
         except Exception as err:
             _LOGGER.error("Failed to reset HomGar API connection: %s", err)
+
+    @property
+    def retry_count(self) -> int:
+        """Get current retry count for diagnostics."""
+        return self._login_retry_count
+
+    @property
+    def last_login_time(self) -> float:
+        """Get last login time for diagnostics."""
+        return self._last_login_time
