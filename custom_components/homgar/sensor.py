@@ -19,7 +19,7 @@ from homeassistant.const import (
     LIGHT_LUX,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.entity import DeviceInfo
+from homeassistant.helpers.entity import DeviceInfo, EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -85,6 +85,15 @@ SENSOR_DESCRIPTIONS = {
         device_class=SensorDeviceClass.SIGNAL_STRENGTH,
         state_class=SensorStateClass.MEASUREMENT,
         native_unit_of_measurement="dBm",
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    "battery": SensorEntityDescription(
+        key="battery",
+        name="Battery",
+        device_class=SensorDeviceClass.BATTERY,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=PERCENTAGE,
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
 }
 
@@ -100,14 +109,25 @@ async def async_setup_entry(
     entities = []
 
     for device in coordinator.data.get("devices", []):
+        device_sensors = []
+        
         if isinstance(device, RainPointDisplayHub):
-            entities.extend(_create_hub_sensors(coordinator, device))
+            device_sensors = _create_hub_sensors(coordinator, device)
         elif isinstance(device, RainPointSoilMoistureSensor):
-            entities.extend(_create_soil_moisture_sensors(coordinator, device))
+            device_sensors = _create_soil_moisture_sensors(coordinator, device)
         elif isinstance(device, RainPointRainSensor):
-            entities.extend(_create_rain_sensors(coordinator, device))
+            device_sensors = _create_rain_sensors(coordinator, device)
         elif isinstance(device, RainPointAirSensor):
-            entities.extend(_create_air_sensors(coordinator, device))
+            device_sensors = _create_air_sensors(coordinator, device)
+        else:
+            _LOGGER.debug("Unknown device type: %s for device %s", 
+                         type(device).__name__, getattr(device, 'name', 'Unknown'))
+            continue
+            
+        _LOGGER.debug("Creating %d sensors for device %s (%s)", 
+                     len(device_sensors), getattr(device, 'name', 'Unknown'), 
+                     type(device).__name__)
+        entities.extend(device_sensors)
 
     async_add_entities(entities)
 
@@ -116,17 +136,19 @@ def _create_hub_sensors(coordinator, device):
     """Create sensors for display hub."""
     sensors = []
     
-    if device.temp_mk_current is not None:
+    # Temperature sensor
+    if hasattr(device, 'temp_mk_current') and device.temp_mk_current is not None:
         sensors.append(
             HomgarSensor(
                 coordinator,
                 device,
                 SENSOR_DESCRIPTIONS["temperature"],
-                lambda d: (d.temp_mk_current * 1e-3 - 273.15) if d.temp_mk_current else None,
+                lambda d: round((d.temp_mk_current * 1e-3 - 273.15), 1) if d.temp_mk_current else None,
             )
         )
     
-    if device.hum_current is not None:
+    # Humidity sensor
+    if hasattr(device, 'hum_current') and device.hum_current is not None:
         sensors.append(
             HomgarSensor(
                 coordinator,
@@ -136,7 +158,8 @@ def _create_hub_sensors(coordinator, device):
             )
         )
     
-    if device.press_pa_current is not None:
+    # Pressure sensor
+    if hasattr(device, 'press_pa_current') and device.press_pa_current is not None:
         sensors.append(
             HomgarSensor(
                 coordinator,
@@ -146,13 +169,32 @@ def _create_hub_sensors(coordinator, device):
             )
         )
     
-    if device.wifi_rssi is not None:
+    # WiFi RSSI sensor
+    if hasattr(device, 'wifi_rssi') and device.wifi_rssi is not None:
         sensors.append(
             HomgarSensor(
                 coordinator,
                 device,
-                SENSOR_DESCRIPTIONS["rssi"],
+                SensorEntityDescription(
+                    key="wifi_rssi",
+                    name="WiFi Signal Strength",
+                    device_class=SensorDeviceClass.SIGNAL_STRENGTH,
+                    state_class=SensorStateClass.MEASUREMENT,
+                    native_unit_of_measurement="dBm",
+                    entity_category=EntityCategory.DIAGNOSTIC,
+                ),
                 lambda d: d.wifi_rssi,
+            )
+        )
+    
+    # Battery sensor (if available)
+    if hasattr(device, 'battery_level') and device.battery_level is not None:
+        sensors.append(
+            HomgarSensor(
+                coordinator,
+                device,
+                SENSOR_DESCRIPTIONS["battery"],
+                lambda d: d.battery_level,
             )
         )
     
@@ -163,17 +205,19 @@ def _create_soil_moisture_sensors(coordinator, device):
     """Create sensors for soil moisture sensor."""
     sensors = []
     
-    if device.temp_mk_current is not None:
+    # Temperature sensor
+    if hasattr(device, 'temp_mk_current') and device.temp_mk_current is not None:
         sensors.append(
             HomgarSensor(
                 coordinator,
                 device,
                 SENSOR_DESCRIPTIONS["temperature"],
-                lambda d: (d.temp_mk_current * 1e-3 - 273.15) if d.temp_mk_current else None,
+                lambda d: round((d.temp_mk_current * 1e-3 - 273.15), 1) if d.temp_mk_current else None,
             )
         )
     
-    if device.moist_percent_current is not None:
+    # Soil moisture sensor
+    if hasattr(device, 'moist_percent_current') and device.moist_percent_current is not None:
         sensors.append(
             HomgarSensor(
                 coordinator,
@@ -183,7 +227,8 @@ def _create_soil_moisture_sensors(coordinator, device):
             )
         )
     
-    if device.light_lux_current is not None:
+    # Light sensor
+    if hasattr(device, 'light_lux_current') and device.light_lux_current is not None:
         sensors.append(
             HomgarSensor(
                 coordinator,
@@ -193,13 +238,32 @@ def _create_soil_moisture_sensors(coordinator, device):
             )
         )
     
-    if device.rf_rssi is not None:
+    # RF RSSI sensor
+    if hasattr(device, 'rf_rssi') and device.rf_rssi is not None:
         sensors.append(
             HomgarSensor(
                 coordinator,
                 device,
-                SENSOR_DESCRIPTIONS["rssi"],
+                SensorEntityDescription(
+                    key="rf_rssi",
+                    name="RF Signal Strength",
+                    device_class=SensorDeviceClass.SIGNAL_STRENGTH,
+                    state_class=SensorStateClass.MEASUREMENT,
+                    native_unit_of_measurement="dBm",
+                    entity_category=EntityCategory.DIAGNOSTIC,
+                ),
                 lambda d: d.rf_rssi,
+            )
+        )
+    
+    # Battery sensor (if available)
+    if hasattr(device, 'battery_level') and device.battery_level is not None:
+        sensors.append(
+            HomgarSensor(
+                coordinator,
+                device,
+                SENSOR_DESCRIPTIONS["battery"],
+                lambda d: d.battery_level,
             )
         )
     
@@ -210,7 +274,8 @@ def _create_rain_sensors(coordinator, device):
     """Create sensors for rain sensor."""
     sensors = []
     
-    if device.rainfall_mm_total is not None:
+    # Total rainfall sensor
+    if hasattr(device, 'rainfall_mm_total') and device.rainfall_mm_total is not None:
         sensors.append(
             HomgarSensor(
                 coordinator,
@@ -226,7 +291,8 @@ def _create_rain_sensors(coordinator, device):
             )
         )
     
-    if device.rainfall_mm_hour is not None:
+    # Hourly rainfall sensor
+    if hasattr(device, 'rainfall_mm_hour') and device.rainfall_mm_hour is not None:
         sensors.append(
             HomgarSensor(
                 coordinator,
@@ -236,13 +302,14 @@ def _create_rain_sensors(coordinator, device):
                     name="Hourly Rainfall",
                     device_class=SensorDeviceClass.PRECIPITATION_INTENSITY,
                     state_class=SensorStateClass.MEASUREMENT,
-                    native_unit_of_measurement="mm/h",  # Fixed: Use string instead of UnitOfVolumeFlowRate
+                    native_unit_of_measurement="mm/h",
                 ),
                 lambda d: d.rainfall_mm_hour,
             )
         )
     
-    if device.rainfall_mm_daily is not None:
+    # Daily rainfall sensor
+    if hasattr(device, 'rainfall_mm_daily') and device.rainfall_mm_daily is not None:
         sensors.append(
             HomgarSensor(
                 coordinator,
@@ -258,13 +325,32 @@ def _create_rain_sensors(coordinator, device):
             )
         )
     
-    if device.rf_rssi is not None:
+    # RF RSSI sensor
+    if hasattr(device, 'rf_rssi') and device.rf_rssi is not None:
         sensors.append(
             HomgarSensor(
                 coordinator,
                 device,
-                SENSOR_DESCRIPTIONS["rssi"],
+                SensorEntityDescription(
+                    key="rf_rssi",
+                    name="RF Signal Strength",
+                    device_class=SensorDeviceClass.SIGNAL_STRENGTH,
+                    state_class=SensorStateClass.MEASUREMENT,
+                    native_unit_of_measurement="dBm",
+                    entity_category=EntityCategory.DIAGNOSTIC,
+                ),
                 lambda d: d.rf_rssi,
+            )
+        )
+    
+    # Battery sensor (if available)
+    if hasattr(device, 'battery_level') and device.battery_level is not None:
+        sensors.append(
+            HomgarSensor(
+                coordinator,
+                device,
+                SENSOR_DESCRIPTIONS["battery"],
+                lambda d: d.battery_level,
             )
         )
     
@@ -275,17 +361,19 @@ def _create_air_sensors(coordinator, device):
     """Create sensors for air sensor."""
     sensors = []
     
-    if device.temp_mk_current is not None:
+    # Temperature sensor
+    if hasattr(device, 'temp_mk_current') and device.temp_mk_current is not None:
         sensors.append(
             HomgarSensor(
                 coordinator,
                 device,
                 SENSOR_DESCRIPTIONS["temperature"],
-                lambda d: (d.temp_mk_current * 1e-3 - 273.15) if d.temp_mk_current else None,
+                lambda d: round((d.temp_mk_current * 1e-3 - 273.15), 1) if d.temp_mk_current else None,
             )
         )
     
-    if device.hum_current is not None:
+    # Humidity sensor
+    if hasattr(device, 'hum_current') and device.hum_current is not None:
         sensors.append(
             HomgarSensor(
                 coordinator,
@@ -295,13 +383,32 @@ def _create_air_sensors(coordinator, device):
             )
         )
     
-    if device.rf_rssi is not None:
+    # RF RSSI sensor
+    if hasattr(device, 'rf_rssi') and device.rf_rssi is not None:
         sensors.append(
             HomgarSensor(
                 coordinator,
                 device,
-                SENSOR_DESCRIPTIONS["rssi"],
+                SensorEntityDescription(
+                    key="rf_rssi",
+                    name="RF Signal Strength",
+                    device_class=SensorDeviceClass.SIGNAL_STRENGTH,
+                    state_class=SensorStateClass.MEASUREMENT,
+                    native_unit_of_measurement="dBm",
+                    entity_category=EntityCategory.DIAGNOSTIC,
+                ),
                 lambda d: d.rf_rssi,
+            )
+        )
+    
+    # Battery sensor (if available)
+    if hasattr(device, 'battery_level') and device.battery_level is not None:
+        sensors.append(
+            HomgarSensor(
+                coordinator,
+                device,
+                SENSOR_DESCRIPTIONS["battery"],
+                lambda d: d.battery_level,
             )
         )
     
@@ -323,45 +430,98 @@ class HomgarSensor(CoordinatorEntity, SensorEntity):
         self.entity_description = description
         self._device = device
         self._value_fn = value_fn
-        self._attr_unique_id = f"{device.mid}_{device.did}_{description.key}"
-        self._attr_name = f"{device.name} {description.name}"
+        
+        # Safely get device identifiers with fallbacks
+        device_mid = getattr(device, 'mid', 'unknown')
+        device_did = getattr(device, 'did', 'unknown')
+        device_name = getattr(device, 'name', 'Unknown Device')
+        
+        self._attr_unique_id = f"{device_mid}_{device_did}_{description.key}"
+        self._attr_name = f"{device_name} {description.name}"
 
     @property
     def device_info(self) -> DeviceInfo:
         """Return device information."""
+        device_mid = getattr(self._device, 'mid', 'unknown')
+        device_did = getattr(self._device, 'did', 'unknown')
+        device_name = getattr(self._device, 'name', 'Unknown Device')
+        device_model = getattr(self._device, 'model', None)
+        device_sw_version = getattr(self._device, 'sw_version', None)
+        device_serial = getattr(self._device, 'serial_number', None)
+        
         # For hub devices (main devices)
         if isinstance(self._device, RainPointDisplayHub):
-            return DeviceInfo(
-                identifiers={(DOMAIN, str(self._device.mid))},
-                name=self._device.name,
+            device_info = DeviceInfo(
+                identifiers={(DOMAIN, str(device_mid))},
+                name=device_name,
                 manufacturer="RainPoint",
-                model=getattr(self._device, 'model', 'Display Hub'),
-                sw_version=getattr(self._device, 'sw_version', None),
+                model=device_model or "Display Hub",
             )
+            
+            if device_sw_version:
+                device_info["sw_version"] = device_sw_version
+            if device_serial:
+                device_info["serial_number"] = device_serial
+                
+            return device_info
         # For sub-devices that connect through a hub
         else:
-            return DeviceInfo(
-                identifiers={(DOMAIN, f"{self._device.mid}_{self._device.did}")},
-                name=self._device.name,
+            device_info = DeviceInfo(
+                identifiers={(DOMAIN, f"{device_mid}_{device_did}")},
+                name=device_name,
                 manufacturer="RainPoint",
-                model=getattr(self._device, 'model', 'Sensor'),
-                sw_version=getattr(self._device, 'sw_version', None),
-                via_device=(DOMAIN, str(self._device.mid)),
+                model=device_model or "Sensor",
+                via_device=(DOMAIN, str(device_mid)),
             )
+            
+            if device_sw_version:
+                device_info["sw_version"] = device_sw_version
+            if device_serial:
+                device_info["serial_number"] = device_serial
+                
+            return device_info
 
     @property
     def native_value(self) -> Any:
         """Return the state of the sensor."""
+        device_mid = getattr(self._device, 'mid', None)
+        device_did = getattr(self._device, 'did', None)
+        
+        if device_mid is None or device_did is None:
+            _LOGGER.warning("Device missing mid or did: %s", self._attr_unique_id)
+            return None
+            
         for device in self.coordinator.data.get("devices", []):
-            if device.mid == self._device.mid and device.did == self._device.did:
+            if (getattr(device, 'mid', None) == device_mid and 
+                getattr(device, 'did', None) == device_did):
                 try:
-                    return self._value_fn(device)
-                except (AttributeError, TypeError) as err:
+                    value = self._value_fn(device)
+                    _LOGGER.debug("Got value %s for sensor %s", value, self._attr_unique_id)
+                    return value
+                except (AttributeError, TypeError, ValueError) as err:
                     _LOGGER.debug("Error getting value for %s: %s", self._attr_unique_id, err)
                     return None
+        
+        _LOGGER.debug("Device not found for sensor %s", self._attr_unique_id)
         return None
 
     @property
     def available(self) -> bool:
         """Return if entity is available."""
-        return self.coordinator.last_update_success and self.native_value is not None
+        # Fixed: Remove the None check - sensor should be available if coordinator is working
+        return self.coordinator.last_update_success
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return additional state attributes."""
+        attributes = {}
+        
+        # Add device online status if available
+        if hasattr(self._device, 'online'):
+            attributes["device_online"] = getattr(self._device, 'online', False)
+            
+        # Add last seen timestamp if available
+        if hasattr(self._device, 'last_seen'):
+            attributes["last_seen"] = getattr(self._device, 'last_seen', None)
+            
+        return attributes if attributes else None
