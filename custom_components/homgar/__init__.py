@@ -63,6 +63,13 @@ class HomgarDataUpdateCoordinator(DataUpdateCoordinator):
         """Update data via library."""
         try:
             await self.hass.async_add_executor_job(self._update_data)
+            
+            # Validate data structure
+            if not isinstance(self.homes, list):
+                self.homes = []
+            if not isinstance(self.devices, list):
+                self.devices = []
+                
             return {"homes": self.homes, "devices": self.devices}
         except HomgarApiException as exception:
             _LOGGER.error("Error communicating with HomGar API: %s", exception)
@@ -77,41 +84,13 @@ class HomgarDataUpdateCoordinator(DataUpdateCoordinator):
         self.homes = self.api.get_homes()
         self.devices = []
         
+        _LOGGER.debug("Found %d homes", len(self.homes))
+        
         for home in self.homes:
             hubs = self.api.get_devices_for_hid(home.hid)
             for hub in hubs:
                 self.api.get_device_status(hub)
                 self.devices.append(hub)
                 self.devices.extend(hub.subdevices)
-
-async def _async_update_data(self):
-    """Update data via library."""
-    try:
-        await self.hass.async_add_executor_job(self._update_data)
-        
-        # Validate data structure
-        if not isinstance(self.homes, list):
-            self.homes = []
-        if not isinstance(self.devices, list):
-            self.devices = []
-            
-        return {"homes": self.homes, "devices": self.devices}
-    except Exception as exception:
-        # ... existing error handling
-
-def _update_data(self):
-    """Fetch data from API endpoint."""
-    self.api.ensure_logged_in()
-    self.homes = self.api.get_homes()
-    self.devices = []
-    
-    _LOGGER.debug("Found %d homes", len(self.homes))
-    
-    for home in self.homes:
-        hubs = self.api.get_devices_for_hid(home.hid)
-        for hub in hubs:
-            self.api.get_device_status(hub)
-            self.devices.append(hub)
-            self.devices.extend(hub.subdevices)
-            
-    _LOGGER.debug("Total devices discovered: %d", len(self.devices))
+                
+        _LOGGER.debug("Total devices discovered: %d", len(self.devices))
