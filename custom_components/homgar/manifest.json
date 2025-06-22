@@ -1,13 +1,13 @@
 {
   "domain": "homgar",
   "name": "HomGar",
-  "codeowners": ["@your-github-username"],
+  "codeowners": ["@bapesupreme"],
   "config_flow": true,
   "dependencies": [],
-  "documentation": "https://github.com/your-username/homgar-hass",
+  "documentation": "https://github.com/bapesupreme/homgar-hass",
   "integration_type": "device",
   "iot_class": "cloud_polling",
-  "issue_tracker": "https://github.com/your-username/homgar-hass/issues",
+  "issue_tracker": "https://github.com/bapesupreme/homgar-hass/issues",
   "requirements": ["homgarapi>=0.0.1"],
   "version": "1.0.0"
 }
