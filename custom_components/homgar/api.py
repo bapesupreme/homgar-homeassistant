@@ -196,3 +196,15 @@ class HomgarApiClient:
     def last_login_time(self) -> float:
         """Get last login time for diagnostics."""
         return self._last_login_time
+
+def __init__(self, email: str, password: str, area_code: str = "31", timeout: int = REQUEST_TIMEOUT) -> None:
+    # ... existing code ...
+    self._timeout = timeout
+
+async def async_health_check(self) -> bool:
+    """Check if the API connection is healthy."""
+    try:
+        await self.hass.async_add_executor_job(self.get_homes)
+        return True
+    except Exception:
+        return False
