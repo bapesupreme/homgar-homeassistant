@@ -1,0 +1,22 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Homgar Smart Garden",
+        "description": "Enter your Homgar account credentials to connect your RainPoint Smart+ devices to Home Assistant.",
+        "data": {
+          "email": "Email",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to Homgar API. Please check your internet connection and try again.",
+      "invalid_auth": "Invalid email or password. Please check your credentials.",
+      "unknown": "Unexpected error occurred. Please try again."
+    },
+    "abort": {
+      "already_configured": "Account is already configured"
+    }
+  }
+}
