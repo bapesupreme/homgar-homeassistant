@@ -237,7 +237,7 @@ def _create_rain_sensors(coordinator, device):
                     name="Hourly Rainfall",
                     device_class=SensorDeviceClass.PRECIPITATION_INTENSITY,
                     state_class=SensorStateClass.MEASUREMENT,
-                    native_unit_of_measurement=UnitOfVolumeFlowRate.MILLIMETERS_PER_HOUR,
+                    native_unit_of_measurement="mm/h"  # String, not UnitOfVolumeFlowRate
                 ),
                 lambda d: d.rainfall_mm_hour,
             )
