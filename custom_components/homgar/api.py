@@ -21,7 +21,7 @@ REQUEST_TIMEOUT = 30
 class HomgarApiClient:
     """HomGar API client wrapper."""
 
-    def __init__(self, email: str, password: str, area_code: str = "31") -> None:
+    def __init__(self, email: str, password: str, area_code: str = "31", timeout: int = REQUEST_TIMEOUT) -> None:
         """Initialize the API client."""
         self.email = email
         self.password = password
@@ -30,6 +30,7 @@ class HomgarApiClient:
         self._last_login_time = 0
         self._login_retry_count = 0
         self._max_retries = MAX_LOGIN_RETRIES
+        self._timeout = timeout
 
     def _calculate_backoff_delay(self, attempt: int) -> float:
         """Calculate exponential backoff with jitter."""
@@ -187,6 +188,15 @@ class HomgarApiClient:
         except Exception as err:
             _LOGGER.error("Failed to reset HomGar API connection: %s", err)
 
+    async def async_health_check(self) -> bool:
+        """Check if the API connection is healthy."""
+        try:
+            # This would need to be implemented with proper async context
+            self.get_homes()
+            return True
+        except Exception:
+            return False
+
     @property
     def retry_count(self) -> int:
         """Get current retry count for diagnostics."""
@@ -196,15 +206,3 @@ class HomgarApiClient:
     def last_login_time(self) -> float:
         """Get last login time for diagnostics."""
         return self._last_login_time
-
-def __init__(self, email: str, password: str, area_code: str = "31", timeout: int = REQUEST_TIMEOUT) -> None:
-    # ... existing code ...
-    self._timeout = timeout
-
-async def async_health_check(self) -> bool:
-    """Check if the API connection is healthy."""
-    try:
-        await self.hass.async_add_executor_job(self.get_homes)
-        return True
-    except Exception:
-        return False
