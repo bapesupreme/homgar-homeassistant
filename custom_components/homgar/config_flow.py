@@ -35,7 +35,12 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     ) -> FlowResult:
         """Handle the initial step."""
         errors: dict[str, str] = {}
+        
         if user_input is not None:
+            # Check for existing entries with same email
+            await self.async_set_unique_id(user_input[CONF_EMAIL])
+            self._abort_if_unique_id_configured()
+            
             try:
                 info = await self._validate_input(user_input)
             except CannotConnect:
@@ -64,7 +69,7 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             await self.hass.async_add_executor_job(api.ensure_logged_in)
         except Exception as err:
             _LOGGER.error("Failed to connect to HomGar API: %s", err)
-            if "401" in str(err) or "403" in str(err):
+            if "401" in str(err) or "403" in str(err) or "invalid" in str(err).lower():
                 raise InvalidAuth from err
             raise CannotConnect from err
 
