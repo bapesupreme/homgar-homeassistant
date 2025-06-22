@@ -1,0 +1,23 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up HomGar",
+        "description": "Enter your HomGar credentials",
+        "data": {
+          "email": "Email",
+          "password": "Password",
+          "area_code": "Area Code"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to HomGar API",
+      "invalid_auth": "Invalid authentication credentials",
+      "unknown": "Unexpected error occurred"
+    },
+    "abort": {
+      "already_configured": "Account is already configured"
+    }
+  }
+}
