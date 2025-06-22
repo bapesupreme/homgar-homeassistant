@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from typing import Any
 
 import voluptuous as vol
@@ -16,11 +17,16 @@ from .const import DOMAIN
 
 _LOGGER = logging.getLogger(__name__)
 
+# Constants
+DEFAULT_AREA_CODE = "31"
+MAX_AREA_CODE_LENGTH = 3
+EMAIL_REGEX = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+
 STEP_USER_DATA_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_EMAIL): str,
         vol.Required(CONF_PASSWORD): str,
-        vol.Optional("area_code", default="31"): str,
+        vol.Optional("area_code", default=DEFAULT_AREA_CODE): str,
     }
 )
 
@@ -37,48 +43,64 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors: dict[str, str] = {}
         
         if user_input is not None:
-            # Check for existing entries with same email
-            await self.async_set_unique_id(user_input[CONF_EMAIL])
-            self._abort_if_unique_id_configured()
-            
-            try:
-                info = await self._validate_input(user_input)
-            except CannotConnect:
-                errors["base"] = "cannot_connect"
-            except InvalidAuth:
-                errors["base"] = "invalid_auth"
-            except Exception:  # pylint: disable=broad-except
-                _LOGGER.exception("Unexpected exception")
-                errors["base"] = "unknown"
+            # Validate input format first
+            validation_errors = self._validate_input_format(user_input)
+            if validation_errors:
+                errors.update(validation_errors)
             else:
-                return self.async_create_entry(title=info["title"], data=user_input)
+                # Check for existing entries with same email
+                await self.async_set_unique_id(user_input[CONF_EMAIL].lower())
+                self._abort_if_unique_id_configured()
+                
+                try:
+                    info = await self._validate_api_connection(user_input)
+                except CannotConnect:
+                    errors["base"] = "cannot_connect"
+                except InvalidAuth:
+                    errors["base"] = "invalid_auth"
+                except InvalidAreaCode:
+                    errors["area_code"] = "invalid_area_code"
+                except Exception as err:  # pylint: disable=broad-except
+                    _LOGGER.exception("Unexpected exception during setup: %s", err)
+                    errors["base"] = "unknown"
+                else:
+                    return self.async_create_entry(title=info["title"], data=user_input)
 
         return self.async_show_form(
             step_id="user", data_schema=STEP_USER_DATA_SCHEMA, errors=errors
         )
 
-    async def _validate_input(self, data: dict[str, Any]) -> dict[str, Any]:
-        """Validate the user input allows us to connect."""
-        api = HomgarApiClient(
-            email=data[CONF_EMAIL],
-            password=data[CONF_PASSWORD],
-            area_code=data.get("area_code", "31"),
-        )
+    def _validate_input_format(self, data: dict[str, Any]) -> dict[str, str]:
+        """Validate input format before attempting API connection."""
+        errors: dict[str, str] = {}
+        
+        # Validate email format
+        email = data.get(CONF_EMAIL, "").strip()
+        if not email:
+            errors[CONF_EMAIL] = "email_required"
+        elif not EMAIL_REGEX.match(email):
+            errors[CONF_EMAIL] = "invalid_email"
+        
+        # Validate password
+        password = data.get(CONF_PASSWORD, "")
+        if not password:
+            errors[CONF_PASSWORD] = "password_required"
+        elif len(password) < 3:  # Basic length check
+            errors[CONF_PASSWORD] = "password_too_short"
+        
+        # Validate area code
+        area_code = data.get("area_code", "").strip()
+        if area_code:
+            if not area_code.isdigit():
+                errors["area_code"] = "area_code_not_numeric"
+            elif len(area_code) > MAX_AREA_CODE_LENGTH:
+                errors["area_code"] = "area_code_too_long"
+            elif len(area_code) == 0:
+                errors["area_code"] = "area_code_empty"
+        
+        return errors
 
-        try:
-            await self.hass.async_add_executor_job(api.ensure_logged_in)
-        except Exception as err:
-            _LOGGER.error("Failed to connect to HomGar API: %s", err)
-            if "401" in str(err) or "403" in str(err) or "invalid" in str(err).lower():
-                raise InvalidAuth from err
-            raise CannotConnect from err
-
-        return {"title": f"HomGar ({data[CONF_EMAIL]})"}
-
-
-class CannotConnect(HomeAssistantError):
-    """Error to indicate we cannot connect."""
-
-
-class InvalidAuth(HomeAssistantError):
-    """Error to indicate there is invalid auth."""
+    async def _validate_api_connection(self, data: dict[str, Any]) -> dict[str, Any]:
+        """Validate the user input allows us to connect to the API."""
+        # Clean up the data
+        clean_data = {
