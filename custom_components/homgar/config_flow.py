@@ -100,7 +100,48 @@ class ConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         
         return errors
 
-    async def _validate_api_connection(self, data: dict[str, Any]) -> dict[str, Any]:
-        """Validate the user input allows us to connect to the API."""
-        # Clean up the data
-        clean_data = {
+async def _validate_api_connection(self, data: dict[str, Any]) -> dict[str, Any]:
+    """Validate the user input allows us to connect to the API."""
+    # Clean up the data
+    clean_data = {
+        CONF_EMAIL: data[CONF_EMAIL].strip().lower(),
+        CONF_PASSWORD: data[CONF_PASSWORD],
+        "area_code": data.get("area_code", DEFAULT_AREA_CODE).strip()
+    }
+    
+    # Test API connection
+    api_client = HomgarApiClient(
+        email=clean_data[CONF_EMAIL],
+        password=clean_data[CONF_PASSWORD],
+        area_code=clean_data["area_code"]
+    )
+    
+    try:
+        await self.hass.async_add_executor_job(api_client.ensure_logged_in)
+        homes = await self.hass.async_add_executor_job(api_client.get_homes)
+        
+        if not homes:
+            raise InvalidAreaCode("No homes found for this area code")
+            
+        return {"title": f"HomGar ({clean_data[CONF_EMAIL]})"}
+        
+    except Exception as err:
+        error_str = str(err).lower()
+        if "credentials" in error_str or "401" in error_str:
+            raise InvalidAuth from err
+        elif "area" in error_str or "zone" in error_str:
+            raise InvalidAreaCode from err
+        else:
+            raise CannotConnect from err
+
+
+class CannotConnect(HomeAssistantError):
+    """Error to indicate we cannot connect."""
+
+
+class InvalidAuth(HomeAssistantError):
+    """Error to indicate there is invalid auth."""
+
+
+class InvalidAreaCode(HomeAssistantError):
+    """Error to indicate invalid area code."""
