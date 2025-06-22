@@ -11,6 +11,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from .const import DOMAIN
 from .api import HomgarApiClient
+from homgarapi import HomgarApiException
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -63,8 +64,12 @@ class HomgarDataUpdateCoordinator(DataUpdateCoordinator):
         try:
             await self.hass.async_add_executor_job(self._update_data)
             return {"homes": self.homes, "devices": self.devices}
+        except HomgarApiException as exception:
+            _LOGGER.error("Error communicating with HomGar API: %s", exception)
+            raise UpdateFailed(f"Error communicating with API: {exception}") from exception
         except Exception as exception:
-            raise UpdateFailed(exception) from exception
+            _LOGGER.error("Unexpected error updating HomGar data: %s", exception)
+            raise UpdateFailed(f"Unexpected error: {exception}") from exception
 
     def _update_data(self):
         """Fetch data from API endpoint."""
