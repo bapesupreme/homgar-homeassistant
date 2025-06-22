@@ -449,3 +449,23 @@ class HomgarSensor(CoordinatorEntity, SensorEntity):
                 attributes["wifi_signal_quality"] = "Excellent" if wifi_rssi > -50 else "Good" if wifi_rssi > -70 else "Fair" if wifi_rssi > -85 else "Poor"
                 
         return attributes if attributes else None
+        
+SENSOR_DESCRIPTIONS = {
+    "temperature": SensorEntityDescription(
+        key="temperature",
+        name="Temperature",
+        device_class=SensorDeviceClass.TEMPERATURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfTemperature.CELSIUS,
+        icon="mdi:thermometer",
+    ),
+    "soil_moisture": SensorEntityDescription(
+        key="soil_moisture", 
+        name="Soil Moisture",
+        device_class=SensorDeviceClass.MOISTURE,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=PERCENTAGE,
+        icon="mdi:water-percent",
+    ),
+    # ... add icons for other sensors
+}
