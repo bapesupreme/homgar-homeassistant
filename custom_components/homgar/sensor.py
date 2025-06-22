@@ -15,7 +15,6 @@ from homeassistant.const import (
     PERCENTAGE,
     UnitOfPressure,
     UnitOfTemperature,
-    UnitOfVolumeFlowRate,
     UnitOfLength,
     LIGHT_LUX,
 )
@@ -237,7 +236,7 @@ def _create_rain_sensors(coordinator, device):
                     name="Hourly Rainfall",
                     device_class=SensorDeviceClass.PRECIPITATION_INTENSITY,
                     state_class=SensorStateClass.MEASUREMENT,
-                    native_unit_of_measurement="mm/h"  # String, not UnitOfVolumeFlowRate
+                    native_unit_of_measurement="mm/h",  # Fixed: Use string instead of UnitOfVolumeFlowRate
                 ),
                 lambda d: d.rainfall_mm_hour,
             )
@@ -330,21 +329,36 @@ class HomgarSensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self) -> DeviceInfo:
         """Return device information."""
-        return DeviceInfo(
-            identifiers={(DOMAIN, str(self._device.mid))},
-            name=self._device.name,
-            manufacturer="RainPoint",
-            model=self._device.model,
-            sw_version=None,
-            via_device=(DOMAIN, str(self._device.mid)) if hasattr(self._device, 'address') and self._device.address != 1 else None,
-        )
+        # For hub devices (main devices)
+        if isinstance(self._device, RainPointDisplayHub):
+            return DeviceInfo(
+                identifiers={(DOMAIN, str(self._device.mid))},
+                name=self._device.name,
+                manufacturer="RainPoint",
+                model=getattr(self._device, 'model', 'Display Hub'),
+                sw_version=getattr(self._device, 'sw_version', None),
+            )
+        # For sub-devices that connect through a hub
+        else:
+            return DeviceInfo(
+                identifiers={(DOMAIN, f"{self._device.mid}_{self._device.did}")},
+                name=self._device.name,
+                manufacturer="RainPoint",
+                model=getattr(self._device, 'model', 'Sensor'),
+                sw_version=getattr(self._device, 'sw_version', None),
+                via_device=(DOMAIN, str(self._device.mid)),
+            )
 
     @property
     def native_value(self) -> Any:
         """Return the state of the sensor."""
         for device in self.coordinator.data.get("devices", []):
             if device.mid == self._device.mid and device.did == self._device.did:
-                return self._value_fn(device)
+                try:
+                    return self._value_fn(device)
+                except (AttributeError, TypeError) as err:
+                    _LOGGER.debug("Error getting value for %s: %s", self._attr_unique_id, err)
+                    return None
         return None
 
     @property
