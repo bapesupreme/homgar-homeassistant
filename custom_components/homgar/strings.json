@@ -1,0 +1,58 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Homgar Smart Garden",
+        "description": "Enter your Homgar account credentials to connect your RainPoint Smart+ devices to Home Assistant.",
+        "data": {
+          "email": "Email",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to Homgar API. Please check your internet connection and try again.",
+      "invalid_auth": "Invalid email or password. Please check your credentials.",
+      "unknown": "Unexpected error occurred. Please try again."
+    },
+    "abort": {
+      "already_configured": "Account is already configured"
+    }
+  },
+  "entity": {
+    "sensor": {
+      "soil_moisture": {
+        "name": "Soil Moisture"
+      },
+      "soil_temperature": {
+        "name": "Soil Temperature"
+      },
+      "humidity": {
+        "name": "Humidity"
+      },
+      "temperature": {
+        "name": "Temperature"
+      },
+      "rain_amount": {
+        "name": "Rain Amount"
+      },
+      "battery": {
+        "name": "Battery"
+      },
+      "signal_strength": {
+        "name": "Signal Strength"
+      }
+    },
+    "binary_sensor": {
+      "watering_zone1": {
+        "name": "Watering Zone 1"
+      },
+      "watering_zone2": {
+        "name": "Watering Zone 2"
+      },
+      "rain_detected": {
+        "name": "Rain Detected"
+      }
+    }
+  }
+}
